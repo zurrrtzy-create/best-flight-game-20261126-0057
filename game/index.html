@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volcano Mail Run — best flight game</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a141f;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #eaf4ff; }
+  #game-container { position: fixed; inset: 0; }
+  #game-container canvas { display: block; }
+  .chip { background: rgba(8, 18, 30, 0.72); border: 1px solid rgba(140, 190, 255, 0.35);
+    border-radius: 10px; padding: 8px 12px; backdrop-filter: blur(2px); }
+  #hud-tl { position: fixed; top: 14px; left: 14px; display: flex; gap: 10px; z-index: 5; }
+  #hud-tl .cell { text-align: center; min-width: 92px; }
+  #hud-tl .lbl { font-size: 11px; letter-spacing: 2px; color: #9fc6ee; font-weight: 700; }
+  #hud-tl .val { font-size: 30px; font-weight: 800; line-height: 1.05; color: #fff;
+    text-shadow: 0 0 12px rgba(127, 212, 255, 0.55); }
+  #hud-tl .unit { font-size: 11px; color: #9fc6ee; }
+  #hud-tr { position: fixed; top: 14px; right: 14px; text-align: right; z-index: 5; min-width: 240px; }
+  #hud-tr .row { display: flex; justify-content: space-between; gap: 14px; align-items: baseline; }
+  #hud-tr .lbl { font-size: 11px; letter-spacing: 2px; color: #9fc6ee; font-weight: 700; }
+  #score { font-size: 26px; font-weight: 800; color: #ffb020; }
+  #fuelbar { height: 10px; background: #12303f; border-radius: 5px; overflow: hidden; margin: 6px 0 2px; }
+  #fuelFill { height: 100%; width: 100%; background: #37d67a; }
+  #fuelFill.low { background: #ff5040; }
+  #objective { font-size: 14px; font-weight: 600; color: #eaf4ff; margin-top: 6px; }
+  #toast { position: fixed; top: 96px; left: 50%; transform: translate(-50%, -8px);
+    font-size: 19px; font-weight: 700; color: #ffe1a1; background: rgba(8, 18, 30, 0.72);
+    border: 1px solid rgba(255, 176, 32, 0.5); border-radius: 10px; padding: 9px 18px;
+    opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 6; pointer-events: none; white-space: nowrap; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #panel { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 5;
+    border-radius: 14px; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45); }
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center;
+    justify-content: center; background: rgba(5, 12, 22, 0.55);
+    opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0.35s; }
+  .overlay.show { opacity: 1; visibility: visible; }
+  .overlay.hidden { display: none; }
+  @keyframes cardIn { from { transform: translateY(14px) scale(0.98); opacity: 0; }
+    to { transform: none; opacity: 1; } }
+  .overlay.show .card { animation: cardIn 0.35s ease; }
+  .card { background: rgba(10, 20, 34, 0.94); border: 1px solid rgba(140, 190, 255, 0.4);
+    border-radius: 18px; padding: 30px 36px; max-width: 640px; text-align: center;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6); }
+  .card h1 { font-size: 40px; letter-spacing: 1px; color: #ffb020; margin-bottom: 4px; }
+  .card h2 { font-size: 26px; color: #ffb020; margin-bottom: 8px; }
+  .card p { font-size: 15px; line-height: 1.55; color: #cfe3f5; margin: 8px 0; }
+  .card .sub { color: #9fc6ee; font-size: 14px; }
+  .missions { display: flex; gap: 10px; margin: 18px 0 6px; }
+  .mission-card { flex: 1; border: 1px solid rgba(140, 190, 255, 0.4); border-radius: 12px;
+    padding: 12px 10px; cursor: pointer; background: rgba(20, 40, 64, 0.6); }
+  .mission-card:hover { border-color: #ffb020; background: rgba(40, 60, 90, 0.75); }
+  .mission-card b { display: block; font-size: 15px; color: #fff; margin-bottom: 4px; }
+  .mission-card span { font-size: 12px; color: #9fc6ee; line-height: 1.4; display: block; }
+  button { margin-top: 16px; font-size: 17px; font-weight: 700; color: #1a1206;
+    background: #ffb020; border: none; border-radius: 10px; padding: 12px 28px; cursor: pointer; }
+  button:hover { background: #ffc44d; }
+  button.ghost { background: transparent; color: #9fc6ee; border: 1px solid rgba(140, 190, 255, 0.5);
+    font-size: 14px; padding: 9px 18px; margin-left: 8px; }
+  .keys { font-size: 13px; color: #9fc6ee; line-height: 1.8; margin-top: 14px; }
+  .keys b { color: #eaf4ff; background: rgba(255, 255, 255, 0.12); border-radius: 4px; padding: 1px 6px; }
+  #missionName { position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; letter-spacing: 3px; font-weight: 700; color: #ffb020; z-index: 5;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8); }
+</style>
+</head>
+<body>
+<div id="game-container"></div>
+
+<div id="hud-tl">
+  <div class="chip cell"><div class="lbl">ALTITUDE</div><div class="val" id="alt">0</div><div class="unit">FEET</div></div>
+  <div class="chip cell"><div class="lbl">AIRSPEED</div><div class="val" id="spd">0</div><div class="unit">KNOTS</div></div>
+  <div class="chip cell"><div class="lbl">HEADING</div><div class="val" id="hdg">090°</div><div class="unit">COMPASS</div></div>
+</div>
+
+<div id="hud-tr" class="chip">
+  <div class="row"><span class="lbl">SCORE</span><span id="score">0</span></div>
+  <div class="row"><span class="lbl">FUEL</span><span id="fuelText">100%</span></div>
+  <div id="fuelbar"><div id="fuelFill"></div></div>
+  <div id="objective">Pick a sortie</div>
+</div>
+
+<div id="toast"></div>
+<div id="missionName">RING RUN</div>
+<canvas id="panel" width="520" height="150"></canvas>
+
+<div id="title" class="overlay">
+  <div class="card">
+    <h1>VOLCANO MAIL RUN</h1>
+    <p class="sub">Fly the mail plane Kancil K-9 around Pulau Api — a volcanic island
+      of beaches, villages and pine forest. Rings, deliveries, storms.</p>
+    <div class="missions">
+      <div class="mission-card" data-mission="0"><b>1 · Ring Run</b><span>Fly 8 glowing rings around Gunung Api, then land home.</span></div>
+      <div class="mission-card" data-mission="1"><b>2 · Mail Drop</b><span>Land at North Strip and East Strip — deliveries refuel you.</span></div>
+      <div class="mission-card" data-mission="2"><b>3 · Storm Return</b><span>6 rings in gusty wind on half a tank. Then land home.</span></div>
+    </div>
+    <button id="startBtn">Start flying</button>
+    <div class="keys">
+      <b>W</b>/<b>S</b> throttle &nbsp; <b>↑</b><b>↓</b> pitch &nbsp; <b>←</b><b>→</b> bank &nbsp; <b>A</b>/<b>D</b> rudder<br>
+      <b>G</b> gear &nbsp; <b>F</b> flaps &nbsp; <b>B</b> brakes &nbsp; mouse drag steers, wheel = throttle<br>
+      <b>P</b> pause &nbsp; <b>R</b> restart &nbsp; <b>M</b> mute
+    </div>
+  </div>
+</div>
+
+<div id="paused" class="overlay hidden">
+  <div class="card">
+    <h2>Paused</h2>
+    <p>The Kancil waits on the wind.</p>
+    <button id="resumeBtn">Resume</button>
+    <button id="menuBtn" class="ghost">Main menu</button>
+  </div>
+</div>
+
+<div id="crashed" class="overlay hidden">
+  <div class="card">
+    <h2>Down she goes</h2>
+    <p id="crashReason">Crashed.</p>
+    <p id="finalScore">Score: 0</p>
+    <button id="retryBtn">Fly again (R)</button>
+    <button id="menuBtn2" class="ghost">Main menu</button>
+  </div>
+</div>
+
+<div id="complete" class="overlay hidden">
+  <div class="card">
+    <h2 id="finalTitle">Sortie complete!</h2>
+    <p id="finalScore">Final score: 0</p>
+    <p>The mail is through — Pulau Api thanks you, pilot.</p>
+    <button id="againBtn">Fly it again (R)</button>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="src/config.js"></script>
+<script src="src/noise.js"></script>
+<script src="src/world.js"></script>
+<script src="src/plane.js"></script>
+<script src="src/physics.js"></script>
+<script src="src/missions.js"></script>
+<script src="src/render.js"></script>
+<script src="src/hud.js"></script>
+<script src="src/input.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
